@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import users, categories
+from routes import users, categories,prompts
 
 app = FastAPI(
     title="AI Learning Platform API",
@@ -19,6 +19,7 @@ app.add_middleware(
 
 app.include_router(users.router, prefix="/api", tags=["users"])
 app.include_router(categories.router, prefix="/api", tags=["categories"])
+app.include_router(prompts.router, prefix="/api", tags=["prompts"])
 
 @app.get("/")
 def read_root():
