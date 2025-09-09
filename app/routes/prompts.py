@@ -1,36 +1,46 @@
-from fastapi import APIRouter
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException
 from config import db
-import uuid, datetime
+from schemas import PromptRequest, PromptResponse
+from services.ai_service import generate_lesson, generate_mock_lesson
+from bson import ObjectId
+from datetime import datetime
 
 router = APIRouter()
 prompts_collection = db["prompts"]
 
-class PromptRequest(BaseModel):
-    user_id: str
-    category_id: str
-    sub_category_id: str
-    prompt: str
-
 @router.post("/prompts")
-def create_prompt(req: PromptRequest):
-    response_text = f"📘 This is a mock lesson about: {req.prompt}"
-
-
+async def create_prompt(prompt_request: PromptRequest):
+    ai_response = generate_mock_lesson(prompt_request.prompt)
+    
     prompt_doc = {
-        "id": str(uuid.uuid4()),
-        "user_id": req.user_id,
-        "category_id": req.category_id,
-        "sub_category_id": req.sub_category_id,
-        "prompt": req.prompt,
-        "response": response_text,
-        "created_at": datetime.datetime.utcnow()
+        "user_id": prompt_request.user_id,
+        "category_id": prompt_request.category_id,
+        "sub_category_id": prompt_request.sub_category_id,
+        "prompt": prompt_request.prompt,
+        "response": ai_response,
+        "created_at": datetime.utcnow()
     }
-    prompts_collection.insert_one(prompt_doc)
-
-    return {"id": prompt_doc["id"], "response": response_text}
+    
+    result = prompts_collection.insert_one(prompt_doc)
+    
+    return {
+        "id": str(result.inserted_id),
+        "response": ai_response,
+        "message": "Lesson generated successfully"
+    }
 
 @router.get("/users/{user_id}/prompts")
 def get_user_prompts(user_id: str):
-    history = list(prompts_collection.find({"user_id": user_id}, {"_id": 0}))
-    return history
+    prompts = list(prompts_collection.find({"user_id": user_id}))
+    for prompt in prompts:
+        prompt["id"] = str(prompt["_id"])
+        del prompt["_id"]
+    return prompts
+
+@router.get("/prompts")
+def list_all_prompts():
+    prompts = list(prompts_collection.find({}))
+    for prompt in prompts:
+        prompt["id"] = str(prompt["_id"])
+        del prompt["_id"]
+    return prompts
