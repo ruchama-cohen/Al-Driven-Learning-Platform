@@ -1,23 +1,25 @@
 import os
 from pymongo import MongoClient
 from dotenv import load_dotenv
-from pathlib import Path
 
-env_path = Path(__file__).resolve().parent.parent / ".env"
-load_dotenv(dotenv_path=env_path)
+load_dotenv()
 
-print("DEBUG MONGO_URI =", os.getenv("MONGO_URI"))
-print("DEBUG MONGO_DB =", os.getenv("MONGO_DB"))
+MONGO_URI = os.getenv("MONGO_URI")
+MONGO_DB = os.getenv("MONGO_DB")
 
-import certifi
+if not MONGO_URI:
+    raise ValueError("MONGO_URI not found in .env file")
+if not MONGO_DB:
+    raise ValueError("MONGO_DB not found in .env file")
+
+print(f"DEBUG MONGO_URI = {MONGO_URI}")
+print(f"DEBUG MONGO_DB = {MONGO_DB}")
 
 try:
-    client = MongoClient(os.getenv("MONGO_URI"), tls=True, tlsCAFile=certifi.where())
+    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=10000)
     client.admin.command('ping')
-    db = client[os.getenv("MONGO_DB")]
-    print("MongoDB connected successfully!")
+    print("MongoDB Atlas connected successfully!")
+    db = client[MONGO_DB]
 except Exception as e:
     print(f"MongoDB connection failed: {e}")
-    client = MongoClient("mongodb://localhost:27017/")
-    db = client["learning_platform_local"]
-    print("Using local MongoDB fallback")
+    raise Exception(f"Cannot connect to MongoDB: {e}")

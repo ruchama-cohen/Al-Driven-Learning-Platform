@@ -6,10 +6,7 @@ class User(BaseModel):
     name: str
     phone: str
     id_number: str
-
-class UserLogin(BaseModel):
-    name: str
-    phone: str
+    id_number: str 
 
 class Category(BaseModel):
     name: str

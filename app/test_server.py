@@ -57,18 +57,18 @@ def create_sub_category(sub_category: dict):
 
 @app.get("/api/categories/{category_id}/sub-categories")
 def list_sub_categories(category_id: str):
-    if category_id == "cat1":  # Science
+    if category_id == "cat1":  
         return [
             {"id": "sub1", "name": "Physics", "category_id": "cat1"},
             {"id": "sub2", "name": "Chemistry", "category_id": "cat1"},
             {"id": "sub3", "name": "Biology", "category_id": "cat1"}
         ]
-    elif category_id == "cat2":  # History
+    elif category_id == "cat2":  
         return [
             {"id": "sub4", "name": "Ancient History", "category_id": "cat2"},
             {"id": "sub5", "name": "Modern History", "category_id": "cat2"}
         ]
-    elif category_id == "cat3":  # Technology
+    elif category_id == "cat3":  
         return [
             {"id": "sub6", "name": "AI & Machine Learning", "category_id": "cat3"},
             {"id": "sub7", "name": "Web Development", "category_id": "cat3"}
@@ -77,7 +77,6 @@ def list_sub_categories(category_id: str):
 
 @app.post("/api/prompts")
 def create_prompt(prompt_data: dict):
-    # Mock AI response
     user_prompt = prompt_data.get("prompt", "")
     response = f"""# Lesson: {user_prompt}
 

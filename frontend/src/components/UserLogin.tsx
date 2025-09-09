@@ -8,31 +8,43 @@ interface UserLoginProps {
 const UserLogin: React.FC<UserLoginProps> = ({ setCurrentUser, setCurrentView }) => {
   const [formData, setFormData] = useState({ name: '', phone: '' });
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
+
+    console.log('Login attempt:', formData);
 
     try {
       const response = await fetch('http://localhost:8000/api/users/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
         body: JSON.stringify(formData)
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        if (result.id) {
-          setCurrentUser(result.id);
-          setCurrentView('learn');
-        }
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+
+      const result = await response.json();
+      console.log('Response data:', result);
+
+      if (response.ok && result.success) {
+        console.log('Login successful, user ID:', result.id);
+        setCurrentUser(result.id);
+        setCurrentView('learn');
       } else {
-        const errorData = await response.json();
-        alert(errorData.detail || 'Login failed');
+        const errorMessage = result.detail || result.error || 'Login failed';
+        console.error('Login failed:', errorMessage);
+        setError(errorMessage);
       }
     } catch (error) {
       console.error('Network error:', error);
-      alert('Network error: Cannot connect to server');
+      setError('Network error: Cannot connect to server. Please check if the backend is running.');
     } finally {
       setLoading(false);
     }
@@ -41,6 +53,20 @@ const UserLogin: React.FC<UserLoginProps> = ({ setCurrentUser, setCurrentView })
   return (
     <div className="form-container">
       <h2>Login to AI Learning Platform</h2>
+      
+      {error && (
+        <div style={{ 
+          color: 'red', 
+          padding: '10px', 
+          marginBottom: '10px',
+          border: '1px solid red',
+          borderRadius: '4px',
+          backgroundColor: '#ffe6e6'
+        }}>
+          {error}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit}>
         <div className="form-group">
           <label>Name:</label>
@@ -49,8 +75,10 @@ const UserLogin: React.FC<UserLoginProps> = ({ setCurrentUser, setCurrentView })
             value={formData.name}
             onChange={(e) => setFormData({...formData, name: e.target.value})}
             required
+            placeholder="Enter your name"
           />
         </div>
+        
         <div className="form-group">
           <label>Phone:</label>
           <input
@@ -58,8 +86,10 @@ const UserLogin: React.FC<UserLoginProps> = ({ setCurrentUser, setCurrentView })
             value={formData.phone}
             onChange={(e) => setFormData({...formData, phone: e.target.value})}
             required
+            placeholder="Enter your phone number"
           />
         </div>
+        
         <button type="submit" className="btn btn-primary" disabled={loading}>
           {loading ? 'Logging in...' : 'Login'}
         </button>
@@ -71,7 +101,13 @@ const UserLogin: React.FC<UserLoginProps> = ({ setCurrentUser, setCurrentView })
           type="button"
           className="btn btn-link"
           onClick={() => setCurrentView('register')}
-          style={{ background: 'none', border: 'none', color: '#007bff', textDecoration: 'underline', cursor: 'pointer' }}
+          style={{ 
+            background: 'none', 
+            border: 'none', 
+            color: '#007bff', 
+            textDecoration: 'underline', 
+            cursor: 'pointer' 
+          }}
         >
           Register here
         </button>

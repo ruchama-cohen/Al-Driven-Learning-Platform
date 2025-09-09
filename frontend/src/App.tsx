@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import './App.css';
 import Header from './components/Header';
 import UserRegistration from './components/UserRegistration';
-import UserLogin from './components/UserLogin';
+import SimpleLogin from './components/SimpleLogin';
 import LearningDashboard from './components/LearningDashboard';
 import AdminDashboard from './components/AdminDashboard';
 
@@ -22,10 +22,18 @@ function App() {
       />
       <main className="main-content">
         {currentView === 'login' && (
-          <UserLogin setCurrentUser={setCurrentUser} setCurrentView={setCurrentView} />
+          <SimpleLogin 
+            setCurrentUser={setCurrentUser} 
+            setCurrentView={setCurrentView}
+            switchToRegister={() => setCurrentView('register')}
+          />
         )}
         {currentView === 'register' && (
-          <UserRegistration setCurrentUser={setCurrentUser} setCurrentView={setCurrentView} />
+          <UserRegistration 
+            setCurrentUser={setCurrentUser} 
+            setCurrentView={setCurrentView}
+            switchToLogin={() => setCurrentView('login')}
+          />
         )}
         {currentView === 'learn' && currentUser && (
           <LearningDashboard userId={currentUser} />

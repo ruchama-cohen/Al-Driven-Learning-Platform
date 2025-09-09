@@ -41,9 +41,10 @@ const AdminDashboard: React.FC = () => {
     try {
       const response = await fetch('http://localhost:8000/api/users');
       const data = await response.json();
-      setUsers(data);
+      setUsers(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching users:', error);
+      setUsers([]);
     }
   };
 
@@ -51,9 +52,10 @@ const AdminDashboard: React.FC = () => {
     try {
       const response = await fetch('http://localhost:8000/api/prompts');
       const data = await response.json();
-      setPrompts(data);
+      setPrompts(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching prompts:', error);
+      setPrompts([]);
     }
   };
 
