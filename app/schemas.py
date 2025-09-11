@@ -6,7 +6,13 @@ class User(BaseModel):
     name: str
     phone: str
     id_number: str
-    id_number: str 
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    user_id: str
+    name: str
+    id_number: Optional[str] 
 
 class Category(BaseModel):
     name: str

@@ -15,7 +15,7 @@ const SimpleLogin: React.FC<SimpleLoginProps> = ({ setCurrentUser, setCurrentVie
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:8000/api/users/login-only', {
+      const response = await fetch('http://localhost:8000/api/users/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)

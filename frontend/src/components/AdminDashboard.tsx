@@ -29,19 +29,35 @@ const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
   const [subCategories, setSubCategories] = useState<any[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    fetchUsers();
+    fetchUsers(currentPage, searchTerm);
     fetchPrompts();
     fetchCategories();
     fetchSubCategories();
-  }, []);
+  }, [currentPage, searchTerm]);
 
-  const fetchUsers = async () => {
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setCurrentPage(1);
+    fetchUsers(1, searchTerm);
+  };
+
+  const fetchUsers = async (page = 1, search = '') => {
     try {
-      const response = await fetch('http://localhost:8000/api/users');
+      const url = `http://localhost:8000/api/users?page=${page}&limit=10${search ? `&search=${search}` : ''}`;
+      const response = await fetch(url);
       const data = await response.json();
-      setUsers(Array.isArray(data) ? data : []);
+      if (data.users) {
+        setUsers(data.users);
+        setTotalPages(data.pages);
+        setCurrentPage(page);
+      } else {
+        setUsers([]);
+      }
     } catch (error) {
       console.error('Error fetching users:', error);
       setUsers([]);
@@ -210,13 +226,50 @@ const AdminDashboard: React.FC = () => {
       </div>
 
       <div className="list-container">
-        <h3>All Users ({users.length})</h3>
+        <h3>All Users</h3>
+        
+        {/* Search */}
+        <form onSubmit={handleSearch} style={{ marginBottom: '20px' }}>
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search users by name or phone..."
+            style={{ marginRight: '10px', padding: '5px' }}
+          />
+          <button type="submit" className="btn btn-primary">Search</button>
+        </form>
+        
+        {/* Users List */}
         {users.map(user => (
           <div key={user.id} className="list-item">
             <strong>{user.name}</strong> - {user.phone}
             <small> (ID: {user.id})</small>
           </div>
         ))}
+        
+        {/* Pagination */}
+        <div style={{ marginTop: '20px', textAlign: 'center' }}>
+          <button 
+            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1}
+            className="btn btn-primary"
+            style={{ marginRight: '10px' }}
+          >
+            Previous
+          </button>
+          
+          <span>Page {currentPage} of {totalPages}</span>
+          
+          <button 
+            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+            disabled={currentPage === totalPages}
+            className="btn btn-primary"
+            style={{ marginLeft: '10px' }}
+          >
+            Next
+          </button>
+        </div>
       </div>
 
       <div className="list-container">

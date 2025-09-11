@@ -1,8 +1,8 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
 from config import db
-from schemas import User
+from schemas import User, Token
 from bson import ObjectId
-from datetime import datetime
+from datetime import datetime, timedelta
 
 router = APIRouter()
 users_collection = db["users"]
@@ -89,18 +89,38 @@ def login_only(user: User):
     }
 
 @router.get("/users")
-def list_users():
-    """Get list of all users (for admin)"""
+def list_users(page: int = 1, limit: int = 10, search: str = None):
+    """Get paginated list of users (for admin)"""
     try:
-        print("=== LIST USERS REQUEST ===")
-        users = list(users_collection.find({}).sort("created_at", -1))
+        skip = (page - 1) * limit
+
+        query = {}
+        if search:
+            query = {
+                "$or": [
+                    {"name": {"$regex": search, "$options": "i"}},
+                    {"phone": {"$regex": search, "$options": "i"}}
+                ]
+            }
+
+        total = users_collection.count_documents(query)
+
+        users = list(users_collection.find(query)
+                    .sort("created_at", -1)
+                    .skip(skip)
+                    .limit(limit))
         
         for user in users:
             user["id"] = str(user["_id"])
             del user["_id"]
             
-        print(f"Retrieved {len(users)} users")
-        return users
+        return {
+            "users": users,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "pages": (total + limit - 1) // limit
+        }
         
     except Exception as e:
         print(f"Error fetching users: {e}")
@@ -130,43 +150,42 @@ def get_user(user_id: str):
         raise HTTPException(status_code=500, detail="Error fetching user details")
 
 @router.post("/users/login")
-async def login_user(user: User, request: Request):
-    """Login existing user"""
+def login_user(user: User):
+    """Login existing user - always returns JWT"""
     try:
-        print(f"=== LOGIN USER REQUEST ===")
-        print(f"Method: {request.method}")
-        print(f"URL: {request.url}")
-        print(f"Headers: {dict(request.headers)}")
-        print(f"User data: {user}")
-        print(f"Logging in user: {user.name} ({user.phone})")
-        
         existing_user = users_collection.find_one({
             "name": user.name,
             "phone": user.phone,
             "id_number": user.id_number
         })
-        
+
         if not existing_user:
-            print(f"User not found: {user.name} ({user.phone})")
+            old_user = users_collection.find_one({
+                "name": user.name,
+                "phone": user.phone
+            })
+            
+            if old_user and "id_number" not in old_user:
+                users_collection.update_one(
+                    {"_id": old_user["_id"]},
+                    {"$set": {"id_number": user.id_number}}
+                )
+                existing_user = users_collection.find_one({"_id": old_user["_id"]})
+
+        if not existing_user:
             raise HTTPException(
-                status_code=404, 
+                status_code=404,
                 detail="User not found. Please check your details or register first."
             )
-        
-        print(f"User logged in successfully: {existing_user['_id']}")
-        
-        response_data = {
-            "success": True,
+
+        return {
             "id": str(existing_user["_id"]),
             "name": existing_user["name"],
             "phone": existing_user["phone"],
-            "id_number": existing_user["id_number"],
+            "id_number": existing_user.get("id_number", ""),
             "message": "Login successful"
         }
-        
-        print(f"Returning response: {response_data}")
-        return response_data
-        
+            
     except HTTPException:
         raise
     except Exception as e:
@@ -174,13 +193,10 @@ async def login_user(user: User, request: Request):
         raise HTTPException(status_code=500, detail="Error logging in user")
 
 @router.post("/users/register")
-async def register_user(user: User, request: Request):
+def register_user(user: User):
     """Register new user"""
     try:
         print(f"=== REGISTER USER REQUEST ===")
-        print(f"Method: {request.method}")
-        print(f"URL: {request.url}")
-        print(f"Headers: {dict(request.headers)}")
         print(f"User data: {user}")
         print(f"Registering new user: {user.name} ({user.phone})")
 
@@ -228,6 +244,7 @@ async def register_user(user: User, request: Request):
         print(f"Error registering user: {e}")
         raise HTTPException(status_code=500, detail="Error registering user")
 
+
 @router.get("/users/debug/test")
 def test_users_endpoint():
     """Test endpoint to verify users router is working"""
@@ -236,8 +253,9 @@ def test_users_endpoint():
         "router": "users",
         "available_endpoints": [
             "POST /api/users/register",
-            "POST /api/users/login", 
+            "POST /api/users/login (returns JWT)", 
             "GET /api/users",
-            "GET /api/users/{user_id}"
+            "GET /api/users/{user_id}",
+            "GET /api/users/protected (JWT required)"
         ]
     }

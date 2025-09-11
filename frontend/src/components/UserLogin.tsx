@@ -6,7 +6,7 @@ interface UserLoginProps {
 }
 
 const UserLogin: React.FC<UserLoginProps> = ({ setCurrentUser, setCurrentView }) => {
-  const [formData, setFormData] = useState({ name: '', phone: '' });
+  const [formData, setFormData] = useState({ name: '', phone: '', id_number: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -18,7 +18,7 @@ const UserLogin: React.FC<UserLoginProps> = ({ setCurrentUser, setCurrentView })
     console.log('Login attempt:', formData);
 
     try {
-      const response = await fetch('http://localhost:8000/api/users/login', {
+      const response = await fetch('http://localhost:8000/api/users/login-jwt', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -33,9 +33,11 @@ const UserLogin: React.FC<UserLoginProps> = ({ setCurrentUser, setCurrentView })
       const result = await response.json();
       console.log('Response data:', result);
 
-      if (response.ok && result.success) {
-        console.log('Login successful, user ID:', result.id);
-        setCurrentUser(result.id);
+      if (response.ok && result.access_token) {
+        localStorage.setItem('access_token', result.access_token);
+        localStorage.setItem('user_id', result.user_id);
+        console.log('Login successful, user ID:', result.user_id);
+        setCurrentUser(result.user_id);
         setCurrentView('learn');
       } else {
         const errorMessage = result.detail || result.error || 'Login failed';
@@ -87,6 +89,17 @@ const UserLogin: React.FC<UserLoginProps> = ({ setCurrentUser, setCurrentView })
             onChange={(e) => setFormData({...formData, phone: e.target.value})}
             required
             placeholder="Enter your phone number"
+          />
+        </div>
+        
+        <div className="form-group">
+          <label>ID Number:</label>
+          <input
+            type="text"
+            value={formData.id_number}
+            onChange={(e) => setFormData({...formData, id_number: e.target.value})}
+            required
+            placeholder="Enter your ID number"
           />
         </div>
         
