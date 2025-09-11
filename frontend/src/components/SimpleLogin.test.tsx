@@ -14,7 +14,8 @@ describe('SimpleLogin Component', () => {
   test('renders login form', () => {
     const mockProps = {
       setCurrentUser: jest.fn(),
-      setCurrentView: jest.fn()
+      setCurrentView: jest.fn(),
+      switchToRegister: jest.fn()
     };
     
     render(<SimpleLogin {...mockProps} />);
@@ -38,6 +39,7 @@ describe('SimpleLogin Component', () => {
       <SimpleLogin 
         setCurrentUser={mockSetCurrentUser}
         setCurrentView={mockSetCurrentView}
+        switchToRegister={jest.fn()}
       />
     );
 
@@ -79,6 +81,7 @@ describe('SimpleLogin Component', () => {
       <SimpleLogin 
         setCurrentUser={jest.fn()}
         setCurrentView={jest.fn()}
+        switchToRegister={jest.fn()}
       />
     );
 

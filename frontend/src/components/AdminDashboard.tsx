@@ -1,9 +1,23 @@
 import React, { useState, useEffect } from 'react';
+import './AdminDashboard.css';
 
 interface User {
   id: string;
   name: string;
   phone: string;
+  id_number: string;
+  created_at: string;
+}
+
+interface Category {
+  id: string;
+  name: string;
+}
+
+interface SubCategory {
+  id: string;
+  name: string;
+  category_id: string;
 }
 
 interface Prompt {
@@ -14,86 +28,115 @@ interface Prompt {
   created_at: string;
 }
 
-interface Category {
-  id: string;
-  name: string;
+interface PaginatedUsers {
+  users: User[];
+  total: number;
+  page: number;
+  limit: number;
+  pages: number;
+  has_next: boolean;
+  has_prev: boolean;
 }
 
 const AdminDashboard: React.FC = () => {
-  const [users, setUsers] = useState<User[]>([]);
-  const [prompts, setPrompts] = useState<Prompt[]>([]);
+  const [activeTab, setActiveTab] = useState<'users' | 'categories' | 'prompts' | 'stats'>('users');
+  
+  const [users, setUsers] = useState<PaginatedUsers>({
+    users: [],
+    total: 0,
+    page: 1,
+    limit: 10,
+    pages: 0,
+    has_next: false,
+    has_prev: false
+  });
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersSearch, setUsersSearch] = useState('');
+  const [usersSortBy, setUsersSortBy] = useState('created_at');
+  const [usersSortOrder, setUsersSortOrder] = useState('desc');
+  
   const [categories, setCategories] = useState<Category[]>([]);
-  const [newCategory, setNewCategory] = useState('');
-  const [newSubCategory, setNewSubCategory] = useState('');
+  const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newSubCategoryName, setNewSubCategoryName] = useState('');
   const [selectedCategoryForSub, setSelectedCategoryForSub] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string>('');
-  const [subCategories, setSubCategories] = useState<any[]>([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [searchTerm, setSearchTerm] = useState('');
+  
+  const [prompts, setPrompts] = useState<Prompt[]>([]);
+  const [promptsLoading, setPromptsLoading] = useState(false);
+  
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalCategories: 0,
+    totalPrompts: 0,
+    recentActivity: []
+  });
 
   useEffect(() => {
-    fetchUsers(currentPage, searchTerm);
-    fetchPrompts();
+    fetchUsers();
     fetchCategories();
     fetchSubCategories();
-  }, [currentPage, searchTerm]);
+    fetchPrompts();
+    fetchStats();
+  }, []);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    setCurrentPage(1);
-    fetchUsers(1, searchTerm);
-  };
-
-  const fetchUsers = async (page = 1, search = '') => {
+  const fetchUsers = async (page = 1, search = '', sortBy = 'created_at', sortOrder = 'desc') => {
+    setUsersLoading(true);
     try {
-      const url = `http://localhost:8000/api/users?page=${page}&limit=10${search ? `&search=${search}` : ''}`;
-      const response = await fetch(url);
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: '10',
+        ...(search && { search }),
+        sort_by: sortBy,
+        sort_order: sortOrder
+      });
+
+      const response = await fetch(`http://localhost:8000/api/users?${params}`);
       const data = await response.json();
-      if (data.users) {
-        setUsers(data.users);
-        setTotalPages(data.pages);
-        setCurrentPage(page);
-      } else {
-        setUsers([]);
-      }
+      setUsers(data);
     } catch (error) {
       console.error('Error fetching users:', error);
-      setUsers([]);
+    } finally {
+      setUsersLoading(false);
     }
   };
 
-  const fetchPrompts = async () => {
+  const handleUsersSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    fetchUsers(1, usersSearch, usersSortBy, usersSortOrder);
+  };
+
+  const handleUsersSortChange = (field: string) => {
+    const newOrder = field === usersSortBy && usersSortOrder === 'asc' ? 'desc' : 'asc';
+    setUsersSortBy(field);
+    setUsersSortOrder(newOrder);
+    fetchUsers(users.page, usersSearch, field, newOrder);
+  };
+
+  const deleteUser = async (userId: string) => {
+    if (!window.confirm('Are you sure you want to delete this user?')) return;
+    
     try {
-      const response = await fetch('http://localhost:8000/api/prompts');
-      const data = await response.json();
-      setPrompts(Array.isArray(data) ? data : []);
+      const response = await fetch(`http://localhost:8000/api/users/${userId}`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        fetchUsers(users.page, usersSearch, usersSortBy, usersSortOrder);
+        alert('User deleted successfully');
+      }
     } catch (error) {
-      console.error('Error fetching prompts:', error);
-      setPrompts([]);
+      console.error('Error deleting user:', error);
+      alert('Error deleting user');
     }
   };
 
   const fetchCategories = async () => {
     try {
-      setError('');
       const response = await fetch('http://localhost:8000/api/categories');
       const data = await response.json();
-      console.log('Categories data from server:', data);
-      
-      if (!Array.isArray(data)) {
-        console.error('Server returned non-array data:', data);
-        setError('Invalid data format received from server');
-        setCategories([]);
-        return;
-      }
-      
-      setCategories(data);
+      setCategories(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching categories:', error);
-      setError('Failed to fetch categories. Please try again later.');
-      setCategories([]);
     }
   };
 
@@ -104,213 +147,358 @@ const AdminDashboard: React.FC = () => {
       setSubCategories(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching sub-categories:', error);
-      setSubCategories([]);
     }
   };
 
-  const handleAddCategory = async (e: React.FormEvent) => {
+  const createCategory = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCategory) return;
+    if (!newCategoryName.trim()) return;
 
-    setLoading(true);
     try {
       const response = await fetch('http://localhost:8000/api/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newCategory })
+        body: JSON.stringify({ name: newCategoryName })
       });
 
       if (response.ok) {
-        setNewCategory('');
+        setNewCategoryName('');
         fetchCategories();
+        alert('Category created successfully');
       }
     } catch (error) {
-      console.error('Error adding category:', error);
-    } finally {
-      setLoading(false);
+      console.error('Error creating category:', error);
     }
   };
 
-  const handleAddSubCategory = async (e: React.FormEvent) => {
+  const createSubCategory = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newSubCategory || !selectedCategoryForSub) return;
+    if (!newSubCategoryName.trim() || !selectedCategoryForSub) return;
 
-    setLoading(true);
     try {
       const response = await fetch('http://localhost:8000/api/sub-categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          name: newSubCategory,
+        body: JSON.stringify({
+          name: newSubCategoryName,
           category_id: selectedCategoryForSub
         })
       });
 
       if (response.ok) {
-        setNewSubCategory('');
+        setNewSubCategoryName('');
         setSelectedCategoryForSub('');
         fetchSubCategories();
+        alert('Sub-category created successfully');
       }
     } catch (error) {
-      console.error('Error adding sub-category:', error);
-    } finally {
-      setLoading(false);
+      console.error('Error creating sub-category:', error);
     }
   };
 
-  const getUserName = (userId: string) => {
-    const user = users.find(u => u.id === userId);
-    return user ? user.name : 'Unknown User';
+  const deleteSubCategory = async (subCategoryId: string) => {
+    if (!window.confirm('Are you sure you want to delete this sub-category?')) return;
+    
+    try {
+      const response = await fetch(`http://localhost:8000/api/sub-categories/${subCategoryId}`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        fetchSubCategories();
+        alert('Sub-category deleted successfully');
+      }
+    } catch (error) {
+      console.error('Error deleting sub-category:', error);
+    }
+  };
+
+  const fetchPrompts = async () => {
+    setPromptsLoading(true);
+    try {
+      const response = await fetch('http://localhost:8000/api/prompts');
+      const data = await response.json();
+      setPrompts(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error fetching prompts:', error);
+    } finally {
+      setPromptsLoading(false);
+    }
+  };
+
+  const fetchStats = async () => {
+    try {
+      setStats({
+        totalUsers: users.total || 0,
+        totalCategories: categories.length,
+        totalPrompts: prompts.length,
+        recentActivity: []
+      });
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    }
   };
 
   return (
-    <div>
-      <div className="form-container">
-        <h2>Admin Dashboard</h2>
-        
-        {error && (
-          <div style={{ color: 'red', padding: '10px', marginBottom: '10px' }}>
-            {error}
+    <div className="admin-dashboard">
+      <div className="admin-header">
+        <h1>Admin Dashboard</h1>
+        <div className="admin-tabs">
+          <button
+            className={activeTab === 'users' ? 'active' : ''}
+            onClick={() => setActiveTab('users')}
+          >
+            Users ({users.total})
+          </button>
+          <button
+            className={activeTab === 'categories' ? 'active' : ''}
+            onClick={() => setActiveTab('categories')}
+          >
+            Categories ({categories.length})
+          </button>
+          <button
+            className={activeTab === 'prompts' ? 'active' : ''}
+            onClick={() => setActiveTab('prompts')}
+          >
+            Lessons ({prompts.length})
+          </button>
+          <button
+            className={activeTab === 'stats' ? 'active' : ''}
+            onClick={() => setActiveTab('stats')}
+          >
+            Statistics
+          </button>
+        </div>
+      </div>
+
+      <div className="admin-content">
+        {activeTab === 'users' && (
+          <div className="users-tab">
+            <div className="users-controls">
+              <form onSubmit={handleUsersSearch} className="search-form">
+                <input
+                  type="text"
+                  placeholder="Search users..."
+                  value={usersSearch}
+                  onChange={(e) => setUsersSearch(e.target.value)}
+                />
+                <button type="submit">Search</button>
+                <button type="button" onClick={() => {
+                  setUsersSearch('');
+                  fetchUsers(1);
+                }}>
+                  Clear
+                </button>
+              </form>
+              
+              <div className="sort-controls">
+                <label>Sort by:</label>
+                <select 
+                  value={usersSortBy} 
+                  onChange={(e) => handleUsersSortChange(e.target.value)}
+                >
+                  <option value="created_at">Date Created</option>
+                  <option value="name">Name</option>
+                  <option value="phone">Phone</option>
+                </select>
+                <button onClick={() => handleUsersSortChange(usersSortBy)}>
+                  {usersSortOrder === 'asc' ? '↑' : '↓'}
+                </button>
+              </div>
+            </div>
+
+            <div className="users-table">
+              {usersLoading ? (
+                <div className="loading">Loading users...</div>
+              ) : (
+                <>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th onClick={() => handleUsersSortChange('name')}>
+                          Name {usersSortBy === 'name' && (usersSortOrder === 'asc' ? '↑' : '↓')}
+                        </th>
+                        <th onClick={() => handleUsersSortChange('phone')}>
+                          Phone {usersSortBy === 'phone' && (usersSortOrder === 'asc' ? '↑' : '↓')}
+                        </th>
+                        <th>ID Number</th>
+                        <th onClick={() => handleUsersSortChange('created_at')}>
+                          Created {usersSortBy === 'created_at' && (usersSortOrder === 'asc' ? '↑' : '↓')}
+                        </th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {users.users.map(user => (
+                        <tr key={user.id}>
+                          <td>{user.name}</td>
+                          <td>{user.phone}</td>
+                          <td>{user.id_number}</td>
+                          <td>{new Date(user.created_at).toLocaleDateString()}</td>
+                          <td>
+                            <button 
+                              className="btn-danger"
+                              onClick={() => deleteUser(user.id)}
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <div className="pagination">
+                    <button
+                      disabled={!users.has_prev}
+                      onClick={() => fetchUsers(users.page - 1, usersSearch, usersSortBy, usersSortOrder)}
+                    >
+                      Previous
+                    </button>
+                    
+                    <span>
+                      Page {users.page} of {users.pages} ({users.total} total users)
+                    </span>
+                    
+                    <button
+                      disabled={!users.has_next}
+                      onClick={() => fetchUsers(users.page + 1, usersSearch, usersSortBy, usersSortOrder)}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         )}
-        
-        <div className="admin-section">
-          <h3>Add New Category</h3>
-          <form onSubmit={handleAddCategory}>
-            <div className="form-group">
-              <input
-                type="text"
-                value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value)}
-                placeholder="Category name (e.g., Science, History)"
-                required
-              />
-              <button type="submit" className="btn btn-primary" disabled={loading}>
-                {loading ? 'Adding...' : 'Add Category'}
-              </button>
-            </div>
-          </form>
-        </div>
 
-        <div className="admin-section">
-          <h3>Add New Sub-Category</h3>
-          <form onSubmit={handleAddSubCategory}>
-            <div className="form-group">
-              <select
-                value={selectedCategoryForSub}
-                onChange={(e) => setSelectedCategoryForSub(e.target.value)}
-                required
-              >
-                <option value="">Select a category</option>
+        {activeTab === 'categories' && (
+          <div className="categories-tab">
+            <div className="categories-section">
+              <h3>Create New Category</h3>
+              <form onSubmit={createCategory} className="create-form">
+                <input
+                  type="text"
+                  placeholder="Category name"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  required
+                />
+                <button type="submit">Create Category</button>
+              </form>
+
+              <h3>Existing Categories</h3>
+              <div className="categories-list">
                 {categories.map(category => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
+                  <div key={category.id} className="category-item">
+                    <strong>{category.name}</strong>
+                    <span>({subCategories.filter(sub => sub.category_id === category.id).length} sub-categories)</span>
+                  </div>
                 ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <input
-                type="text"
-                value={newSubCategory}
-                onChange={(e) => setNewSubCategory(e.target.value)}
-                placeholder="Sub-category name (e.g., Physics, Chemistry)"
-                required
-              />
-              <button type="submit" className="btn btn-primary" disabled={loading || !selectedCategoryForSub}>
-                {loading ? 'Adding...' : 'Add Sub-Category'}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-
-      <div className="list-container">
-        <h3>All Users</h3>
-        
-        {/* Search */}
-        <form onSubmit={handleSearch} style={{ marginBottom: '20px' }}>
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search users by name or phone..."
-            style={{ marginRight: '10px', padding: '5px' }}
-          />
-          <button type="submit" className="btn btn-primary">Search</button>
-        </form>
-        
-        {/* Users List */}
-        {users.map(user => (
-          <div key={user.id} className="list-item">
-            <strong>{user.name}</strong> - {user.phone}
-            <small> (ID: {user.id})</small>
-          </div>
-        ))}
-        
-        {/* Pagination */}
-        <div style={{ marginTop: '20px', textAlign: 'center' }}>
-          <button 
-            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-            disabled={currentPage === 1}
-            className="btn btn-primary"
-            style={{ marginRight: '10px' }}
-          >
-            Previous
-          </button>
-          
-          <span>Page {currentPage} of {totalPages}</span>
-          
-          <button 
-            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-            disabled={currentPage === totalPages}
-            className="btn btn-primary"
-            style={{ marginLeft: '10px' }}
-          >
-            Next
-          </button>
-        </div>
-      </div>
-
-      <div className="list-container">
-        <h3>Categories ({categories.length})</h3>
-        {categories.map(category => (
-          <div key={category.id} className="list-item">
-            <strong>{category.name}</strong>
-            <small> (ID: {category.id})</small>
-          </div>
-        ))}
-      </div>
-
-      <div className="list-container">
-        <h3>Sub-Categories ({subCategories.length})</h3>
-        {subCategories.map(subCategory => (
-          <div key={subCategory.id} className="list-item">
-            <strong>{subCategory.name}</strong>
-            <small> (Category: {categories.find(c => c.id === subCategory.category_id)?.name || 'Unknown'})</small>
-          </div>
-        ))}
-      </div>
-
-      <div className="list-container">
-        <h3>All Learning Activity ({prompts.length} lessons)</h3>
-        {prompts.length === 0 ? (
-          <p>No learning activity yet.</p>
-        ) : (
-          prompts.map(prompt => (
-            <div key={prompt.id} className="list-item">
-              <div>
-                <strong>User:</strong> {getUserName(prompt.user_id)}
               </div>
-              <div>
-                <strong>Question:</strong> {prompt.prompt}
-              </div>
-              <div className="lesson-preview">
-                <strong>Response:</strong> {prompt.response.substring(0, 150)}...
-              </div>
-              <small>{new Date(prompt.created_at).toLocaleDateString()}</small>
             </div>
-          ))
+
+            <div className="subcategories-section">
+              <h3>Create New Sub-Category</h3>
+              <form onSubmit={createSubCategory} className="create-form">
+                <select
+                  value={selectedCategoryForSub}
+                  onChange={(e) => setSelectedCategoryForSub(e.target.value)}
+                  required
+                >
+                  <option value="">Select Category</option>
+                  {categories.map(category => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  placeholder="Sub-category name"
+                  value={newSubCategoryName}
+                  onChange={(e) => setNewSubCategoryName(e.target.value)}
+                  required
+                />
+                <button type="submit">Create Sub-Category</button>
+              </form>
+
+              <h3>Existing Sub-Categories</h3>
+              <div className="subcategories-list">
+                {subCategories.map(subCategory => {
+                  const category = categories.find(c => c.id === subCategory.category_id);
+                  return (
+                    <div key={subCategory.id} className="subcategory-item">
+                      <strong>{subCategory.name}</strong>
+                      <span>in {category?.name || 'Unknown Category'}</span>
+                      <button 
+                        className="btn-danger"
+                        onClick={() => deleteSubCategory(subCategory.id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'prompts' && (
+          <div className="prompts-tab">
+            <h3>All AI Lessons</h3>
+            {promptsLoading ? (
+              <div className="loading">Loading lessons...</div>
+            ) : (
+              <div className="prompts-list">
+                {prompts.map(prompt => (
+                  <div key={prompt.id} className="prompt-item">
+                    <div className="prompt-header">
+                      <strong>Q: {prompt.prompt}</strong>
+                      <small>{new Date(prompt.created_at).toLocaleDateString()}</small>
+                    </div>
+                    <div className="prompt-preview">
+                      {prompt.response.substring(0, 200)}...
+                    </div>
+                    <div className="prompt-meta">
+                      <span>User ID: {prompt.user_id}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'stats' && (
+          <div className="stats-tab">
+            <h3>Platform Statistics</h3>
+            <div className="stats-grid">
+              <div className="stat-card">
+                <h4>Total Users</h4>
+                <p className="stat-number">{users.total}</p>
+              </div>
+              <div className="stat-card">
+                <h4>Total Categories</h4>
+                <p className="stat-number">{categories.length}</p>
+              </div>
+              <div className="stat-card">
+                <h4>Total Sub-Categories</h4>
+                <p className="stat-number">{subCategories.length}</p>
+              </div>
+              <div className="stat-card">
+                <h4>Total Lessons</h4>
+                <p className="stat-number">{prompts.length}</p>
+              </div>
+            </div>
+            
+            <div className="recent-activity">
+              <h4>Recent Activity</h4>
+              <p>Recent activity tracking will be implemented here</p>
+            </div>
+          </div>
         )}
       </div>
     </div>

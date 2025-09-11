@@ -23,9 +23,21 @@ const SimpleLogin: React.FC<SimpleLoginProps> = ({ setCurrentUser, setCurrentVie
 
       if (response.ok) {
         const result = await response.json();
-        if (result.id) {
+        console.log('Login response:', result);
+        
+        if (result.access_token) {
+          // JWT response - store token and user info
+          localStorage.setItem('token', result.access_token);
+          localStorage.setItem('user_id', result.user_id);
+          localStorage.setItem('user_name', result.name);
+          setCurrentUser(result.user_id);
+          setCurrentView('learn');
+        } else if (result.id) {
+          // Legacy response
           setCurrentUser(result.id);
           setCurrentView('learn');
+        } else {
+          alert('Login response format error');
         }
       } else {
         const errorData = await response.json();
